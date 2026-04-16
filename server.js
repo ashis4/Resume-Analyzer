@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const https = require('https');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 
@@ -37,6 +38,15 @@ app.use('/api/analyze', require('./routes/analyzeRoutes'));
 app.get('/', (req, res) => {
   res.send('Resume Analyzer API is running');
 });
+
+// ✅ Keep Render awake every 10 minutes
+setInterval(() => {
+  https.get('https://resume-analyzer-backend.onrender.com/', (res) => {
+    console.log('Keep-alive ping sent, status:', res.statusCode);
+  }).on('error', (err) => {
+    console.log('Keep-alive error:', err.message);
+  });
+}, 10 * 60 * 1000);
 
 // Server Start
 const PORT = process.env.PORT || 5000;
