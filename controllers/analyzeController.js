@@ -17,36 +17,78 @@ const analyzeResume = async (req, res) => {
 
     const jobDescription = req.body.jobDescription || '';
 
+    // ✅ Extract text
     console.log('Step 2: Extracting text from PDF...');
     const resumeText = await extractTextFromPDF(req.file.buffer);
-    console.log('Step 2 OK: Extracted', resumeText.length, 'characters');
+    console.log('Step 2 OK:', resumeText.length, 'characters');
 
     const prompt = buildPrompt(resumeText, jobDescription);
-    console.log('Step 3: Calling Gemini API...');
 
-   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const result = await model.generateContent(prompt);
-    const rawResponse = result.response.text();
+    // ✅ Models
+    const modelPrimary = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const modelFallback = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    console.log('Step 3 OK: Got response from Gemini');
+    let rawResponse;
+
+    // 🔥 Try primary model
+    try {
+      console.log('Step 3: Trying primary model...');
+      const result = await modelPrimary.generateContent(prompt);
+      rawResponse = result.response.text();
+      console.log('Primary model success');
+    } catch (primaryError) {
+      console.error('Primary model failed:', primaryError.message);
+
+      // 🔁 Retry once
+      try {
+        console.log('Retrying primary model...');
+        const retryResult = await modelPrimary.generateContent(prompt);
+        rawResponse = retryResult.response.text();
+        console.log('Retry success');
+      } catch (retryError) {
+        console.error('Retry failed:', retryError.message);
+
+        // 🔄 Fallback model
+        try {
+          console.log('Switching to fallback model...');
+          const fallbackResult = await modelFallback.generateContent(prompt);
+          rawResponse = fallbackResult.response.text();
+          console.log('Fallback success');
+        } catch (fallbackError) {
+          console.error('Fallback also failed:', fallbackError.message);
+
+          return res.status(500).json({
+            message: 'AI service is temporarily unavailable. Please try again.',
+          });
+        }
+      }
+    }
+
     console.log('RAW (first 300 chars):', rawResponse.substring(0, 300));
 
+    // ✅ Clean response
     const cleanResponse = rawResponse
       .replace(/```json/g, '')
       .replace(/```/g, '')
       .trim();
 
     let report;
+
+    // ✅ Safe JSON parsing
     try {
       report = JSON.parse(cleanResponse);
-      console.log('Step 4 OK: JSON parsed successfully');
+      console.log('Step 4: JSON parsed successfully');
     } catch (parseError) {
-      console.error('Step 4 FAILED: Could not parse JSON:', parseError.message);
-      return res.status(500).json({
-        message: 'AI returned an invalid response. Please try again.',
-      });
+      console.error('JSON parse failed:', parseError.message);
+
+      // 💡 Return raw instead of crashing
+      report = {
+        raw: cleanResponse,
+        note: 'AI response was not valid JSON, showing raw output',
+      };
     }
 
+    // ✅ Save to DB (optional user)
     if (req.user) {
       await Analysis.create({
         userId: req.user._id,
@@ -62,10 +104,6 @@ const analyzeResume = async (req, res) => {
   } catch (error) {
     console.error('========== ERROR ==========');
     console.error('Message:', error.message);
-    if (error.response) {
-      console.error('API Status:', error.response.status);
-      console.error('API Data:', JSON.stringify(error.response.data));
-    }
     console.error('===========================');
 
     res.status(500).json({
@@ -75,6 +113,7 @@ const analyzeResume = async (req, res) => {
   }
 };
 
+// ✅ Get all analyses
 const getUserAnalyses = async (req, res) => {
   try {
     const analyses = await Analysis.find({ userId: req.user._id })
@@ -87,6 +126,7 @@ const getUserAnalyses = async (req, res) => {
   }
 };
 
+// ✅ Get single analysis
 const getAnalysisById = async (req, res) => {
   try {
     const analysis = await Analysis.findById(req.params.id);
