@@ -10,9 +10,6 @@ const app = express();
 // Connect Database
 connectDB();
 
-// ✅ Handle preflight requests FIRST
-app.options('/(.*)', cors());
-
 // ✅ CORS
 app.use(cors({
   origin: '*',
