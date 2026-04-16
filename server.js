@@ -11,7 +11,7 @@ const app = express();
 connectDB();
 
 // ✅ Handle preflight requests FIRST
-app.options('*', cors());
+app.options('/(.*)', cors());
 
 // ✅ CORS
 app.use(cors({
