@@ -9,15 +9,7 @@ const app = express();
 
 connectDB();
 
-app.use(cors({
-  origin: [
-    "http://localhost:5500",
-    "https://gentle-snickerdoodle-3a3b5f.netlify.app"
-  ],
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-}));
-
+app.use(cors());
 app.use(express.json());
 
 app.use('/api/auth', require('./routes/authRoutes'));
@@ -29,6 +21,6 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
